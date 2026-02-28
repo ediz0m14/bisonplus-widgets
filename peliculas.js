@@ -220,14 +220,32 @@
   /* ─────────────────────────────────────────────────────────────
      INIT
   ───────────────────────────────────────────────────────────── */
+  /* Lee la configuración del div #lw-config */
+  function readConfig() {
+    var el = document.getElementById('lw-config');
+    if (!el) return {};
+    var langs = [];
+    try { langs = JSON.parse(el.getAttribute('data-langs') || '[]'); } catch(e) {}
+    return {
+      malId:      el.getAttribute('data-mal')     || '0',
+      movie:      el.getAttribute('data-movie')   || '0',
+      trailerYt:  el.getAttribute('data-trailer') || '',
+      blogUrl:    el.getAttribute('data-blog')    || '',
+      langs:      langs
+    };
+  }
+
   function init() {
-    var malId  = extractMalId(LW_MAL_ID)   || 0;
-    var tmdbId = extractTmdbId(LW_MOVIE)   || 0;
-    var blogBase = (LW_BLOG_URL || window.location.origin).replace(/\/+$/,'');
+    var cfg = readConfig();
+    var malId    = extractMalId(cfg.malId)   || 0;
+    var tmdbId   = extractTmdbId(cfg.movie)  || 0;
+    var blogBase = (cfg.blogUrl || window.location.origin).replace(/\/+$/,'');
+    var LW_LANGS    = cfg.langs;
+    var LW_TRAILER_YT = cfg.trailerYt;
     var firstLang = LW_LANGS.find(function(l){ return l.enabled; });
     activeLangKey = firstLang ? firstLang.key : '';
 
-    if (!malId && !tmdbId) { showError('Define LW_MAL_ID y/o LW_MOVIE en la Sección 1.'); hideLoading(); return; }
+    if (!malId && !tmdbId) { showError('Define data-mal y/o data-movie en el div #lw-config.'); hideLoading(); return; }
 
     var jikanP = malId
       ? apiFetch('https://api.jikan.moe/v4/anime/'+malId)
@@ -417,12 +435,12 @@
   /* ─────────────────────────────────────────────────────────────
      REPRODUCTOR
   ───────────────────────────────────────────────────────────── */
-  function getActiveLangServers() { var l=LW_LANGS.find(function(l){ return l.key===activeLangKey; }); return (l&&l.servers)?l.servers:[]; }
+  function getActiveLangServers() { var cfg=readConfig(); var langs=cfg.langs||[]; var l=langs.find(function(l){ return l.key===activeLangKey; }); return (l&&l.servers)?l.servers:[]; }
 
   function renderServers() {
     var sel=document.getElementById('lw-lang-select'); sel.innerHTML='';
-    LW_LANGS.forEach(function(l){ if(!l.enabled) return; var o=document.createElement('option'); o.value=l.key; o.textContent=l.flag+' '+l.label; if(l.key===activeLangKey) o.selected=true; sel.appendChild(o); });
-    var cur=LW_LANGS.find(function(l){ return l.key===activeLangKey; });
+    var _langs=readConfig().langs||[]; _langs.forEach(function(l){ if(!l.enabled) return; var o=document.createElement('option'); o.value=l.key; o.textContent=l.flag+' '+l.label; if(l.key===activeLangKey) o.selected=true; sel.appendChild(o); });
+    var cur=(readConfig().langs||[]).find(function(l){ return l.key===activeLangKey; });
     if (cur) document.getElementById('lw-lang-flag').textContent=cur.flag;
     var servers=getActiveLangServers();
     var cont=document.getElementById('lw-server-tabs');
@@ -433,7 +451,7 @@
 
   window.lwChangeLang = function(sel) {
     activeLangKey=sel.value;
-    var lang=LW_LANGS.find(function(l){ return l.key===activeLangKey; });
+    var lang=(readConfig().langs||[]).find(function(l){ return l.key===activeLangKey; });
     document.getElementById('lw-lang-flag').textContent=lang?lang.flag:'🌐';
     resetPlayer();
     var servers=getActiveLangServers();
@@ -465,7 +483,7 @@
       var iframe=document.createElement('iframe'); iframe.src=server.url; iframe.style.cssText='width:100%;height:100%;border:none;display:block;'; iframe.allowFullscreen=true;
       div.appendChild(iframe); pw.appendChild(div); overlay.style.display='none'; poster.style.display='none';
     } else {
-      var langLabel=(LW_LANGS.find(function(l){ return l.key===activeLangKey; })||{}).label||activeLangKey;
+      var langLabel=((readConfig().langs||[]).find(function(l){ return l.key===activeLangKey; })||{}).label||activeLangKey;
       div.style.cssText+='display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#0d0d0d;';
       div.innerHTML='<svg style="width:42px;height:42px;color:#00b4ff;" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><p style="color:#555;font-size:.82rem;font-family:Outfit,sans-serif;text-align:center;padding:0 24px;">Servidor: <strong style="color:#e0e0e0;">'+esc(server.name)+'</strong> — Idioma: <strong style="color:#00b4ff;">'+esc(langLabel)+'</strong><br><span style="color:#333;font-size:.72rem;margin-top:4px;display:block;">Agrega la URL del embed en LW_LANGS</span></p>';
       pw.appendChild(div); overlay.style.display='none'; poster.style.display='none';
@@ -517,7 +535,7 @@
   }
 
   /* Solo corre si la página tiene config de película */
-  function shouldRun() { try { return typeof LW_MOVIE !== 'undefined'; } catch(e) { return false; } }
+  function shouldRun() { return !!document.getElementById('lw-config') && !!document.getElementById('lw-config').getAttribute('data-movie'); }
   if (shouldRun()) {
     if (document.readyState==='loading') { document.addEventListener('DOMContentLoaded',init); } else { init(); }
   }
