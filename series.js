@@ -118,12 +118,19 @@
     for (var i = 0; i < scripts.length; i++) {
       if (scripts[i].textContent.indexOf('LW_SLUG') !== -1) { configScript = scripts[i]; break; }
     }
-    var container = document.createElement('div');
-    container.innerHTML = html;
-    if (configScript && configScript.parentNode) {
-      configScript.parentNode.insertBefore(container, configScript.nextSibling);
+    function doInsert() {
+      var container = document.createElement('div');
+      container.innerHTML = html;
+      if (configScript && configScript.parentNode) {
+        configScript.parentNode.insertBefore(container, configScript.nextSibling);
+      } else if (document.body) {
+        document.body.appendChild(container);
+      }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', doInsert);
     } else {
-      document.body.appendChild(container);
+      doInsert();
     }
   })();
 
@@ -439,6 +446,10 @@
     ld.textContent=JSON.stringify(jsonLd,function(k,v){ return v===undefined?undefined:v; },2);
   }
 
-  if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',init); } else { init(); }
+  /* Solo corre si la página tiene config de serie */
+  function shouldRun() { try { return typeof LW_SLUG !== 'undefined' && typeof LW_EPISODE === 'undefined' && typeof LW_MOVIE === 'undefined'; } catch(e) { return false; } }
+  if (shouldRun()) {
+    if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',init); } else { init(); }
+  }
 
 })();
