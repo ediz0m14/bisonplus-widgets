@@ -117,7 +117,7 @@
     var scripts = document.getElementsByTagName('script');
     var configScript = null;
     for (var i = 0; i < scripts.length; i++) {
-      if (scripts[i].textContent.indexOf('LW_EPISODE') !== -1) { configScript = scripts[i]; break; }
+      /* no se usa - config viene de data-attributes */
     }
     function doInsert() {
       var container = document.createElement('div');
@@ -162,24 +162,47 @@
   function lweToast(icon,msg) { clearTimeout(toastTimer); document.getElementById('lwe-toast-icon').textContent=icon; document.getElementById('lwe-toast-msg').textContent=msg; document.getElementById('lwe-toast').classList.add('lwe-show'); toastTimer=setTimeout(function(){ document.getElementById('lwe-toast').classList.remove('lwe-show'); },2800); }
 
   function buildEpUrl(season, epNum) {
-    var base=(LW_BLOG_URL||window.location.origin).replace(/\/+$/,'');
-    var date=(LW_DATE||'').replace(/\/+$/,'');
-    return date?base+'/'+date+'/'+LW_SLUG+'-'+season+'x'+epNum+'.html':base+'/'+LW_SLUG+'-'+season+'x'+epNum+'.html';
+    var cfg=readConfig();
+    var base=(cfg.blogUrl||window.location.origin).replace(/\/+$/,'');
+    var date=(cfg.date||'').replace(/\/+$/,'');
+    return date?base+'/'+date+'/'+cfg.slug+'-'+season+'x'+epNum+'.html':base+'/'+cfg.slug+'-'+season+'x'+epNum+'.html';
   }
 
   /* ─────────────────────────────────────────────────────────────
      INIT
   ───────────────────────────────────────────────────────────── */
+  function readConfig() {
+    var el=document.getElementById('lwe-config');
+    if (!el) return {};
+    var langs=[];
+    try { langs=JSON.parse(el.getAttribute('data-langs')||'[]'); } catch(ex) {}
+    var blogUrl = el.getAttribute('data-blog')||'';
+    var blogBase = (blogUrl||window.location.origin).replace(/\/+$/,'');
+    var serieUrl = el.getAttribute('data-serie')||'';
+    if (serieUrl && serieUrl.charAt(0)==='/') serieUrl = blogBase+serieUrl;
+    return {
+      mal:     el.getAttribute('data-mal')     || '0',
+      tmdb:    el.getAttribute('data-tmdb')    || '0',
+      season:  el.getAttribute('data-season')  || '1',
+      episode: el.getAttribute('data-episode') || '1',
+      slug:    el.getAttribute('data-slug')    || '',
+      date:    el.getAttribute('data-date')    || '',
+      blogUrl: blogUrl,
+      serieUrl: serieUrl,
+      langs:   langs
+    };
+  }
+
   function init() {
-    var malId  = extractMalId(LW_MAL_ID)   || 0;
-    var tmdbId = extractTmdbId(LW_TMDB_ID) || 0;
-    var season = parseInt(LW_SEASON)  || 1;
-    var epNum  = parseInt(LW_EPISODE) || 1;
+    var cfg    = readConfig();
+    var malId  = extractMalId(cfg.mal)   || 0;
+    var tmdbId = extractTmdbId(cfg.tmdb) || 0;
+    var season = parseInt(cfg.season)  || 1;
+    var epNum  = parseInt(cfg.episode) || 1;
+    var LW_LANGS   = cfg.langs;
+    var LW_SERIE_URL = cfg.serieUrl;
 
-    if (!tmdbId) { showError('Define LW_TMDB_ID en la Sección 1.'); hideLoading(); return; }
-
-    var blogBase=(LW_BLOG_URL||window.location.origin).replace(/\/+$/,'');
-    if (LW_SERIE_URL && LW_SERIE_URL.charAt(0)==='/') LW_SERIE_URL=blogBase+LW_SERIE_URL;
+    if (!tmdbId) { showError('Define data-tmdb en el div #lwe-config.'); hideLoading(); return; }
 
     var firstLang=LW_LANGS.find(function(l){ return l.enabled; });
     activeLangKey=firstLang?firstLang.key:'';
@@ -273,7 +296,7 @@
      RENDER WIDGET
   ───────────────────────────────────────────────────────────── */
   function renderWidget(d) {
-    var blogBase=(LW_BLOG_URL||window.location.origin).replace(/\/+$/,'');
+    var blogBase=(readConfig().blogUrl||window.location.origin).replace(/\/+$/,'');
 
     if (d.still) document.getElementById('lwe-hero-bg').style.backgroundImage="url('"+d.still+"')";
     if (d.still||d.poster) document.getElementById('lwe-player-poster').style.backgroundImage="url('"+(d.still||d.poster)+"')";
@@ -288,7 +311,7 @@
       if (loading&&loading.parentNode) loading.parentNode.insertBefore(wrap,loading);
     })();
 
-    document.getElementById('lwe-serie-back').href=LW_SERIE_URL||'#';
+    document.getElementById('lwe-serie-back').href=readConfig().serieUrl||'#';
     document.getElementById('lwe-serie-name').textContent=d.serieTitle;
     document.getElementById('lwe-ep-title').textContent=d.epTitle;
 
@@ -308,7 +331,7 @@
     document.getElementById('lwe-genres-row').innerHTML=d.genres.map(function(g){ return '<a href="'+blogBase+'/search/label/'+encodeURIComponent(g)+'" class="lwe-genre-pill" rel="tag">'+esc(g)+'</a>'; }).join('');
     document.getElementById('lwe-ep-overview').textContent=d.epOverview;
     document.getElementById('lwe-ep-list-season').textContent=d.season;
-    document.getElementById('lwe-ver-todos').href=LW_SERIE_URL||'#';
+    document.getElementById('lwe-ver-todos').href=readConfig().serieUrl||'#';
 
     if (d.poster) document.getElementById('lwe-poster').src=d.poster;
     var panelMain=d.titleRomanized||d.serieTitle;
@@ -374,12 +397,12 @@
   /* ─────────────────────────────────────────────────────────────
      REPRODUCTOR
   ───────────────────────────────────────────────────────────── */
-  function getActiveLangServers() { var l=LW_LANGS.find(function(l){ return l.key===activeLangKey; }); return (l&&l.servers)?l.servers:[]; }
+  function getActiveLangServers() { var langs=readConfig().langs||[]; var l=langs.find(function(l){ return l.key===activeLangKey; }); return (l&&l.servers)?l.servers:[]; }
 
   function renderServers() {
     var sel=document.getElementById('lwe-lang-select'); sel.innerHTML='';
-    LW_LANGS.forEach(function(l){ if(!l.enabled) return; var o=document.createElement('option'); o.value=l.key; o.textContent=l.flag+' '+l.label; if(l.key===activeLangKey) o.selected=true; sel.appendChild(o); });
-    var cur=LW_LANGS.find(function(l){ return l.key===activeLangKey; });
+    var _langs=readConfig().langs||[]; _langs.forEach(function(l){ if(!l.enabled) return; var o=document.createElement('option'); o.value=l.key; o.textContent=l.flag+' '+l.label; if(l.key===activeLangKey) o.selected=true; sel.appendChild(o); });
+    var cur=(readConfig().langs||[]).find(function(l){ return l.key===activeLangKey; });
     if (cur) document.getElementById('lwe-lang-flag').textContent=cur.flag;
     var servers=getActiveLangServers();
     document.getElementById('lwe-server-tabs').innerHTML=servers.map(function(s,i){ return '<button class="lwe-server-tab '+(i===0?'active':'')+'" onclick="lweSwitchServer(this,'+i+')">'+esc(s.name)+'</button>'; }).join('');
@@ -389,7 +412,7 @@
 
   window.lweChangeLang = function(sel) {
     activeLangKey=sel.value;
-    var lang=LW_LANGS.find(function(l){ return l.key===activeLangKey; });
+    var lang=(readConfig().langs||[]).find(function(l){ return l.key===activeLangKey; });
     document.getElementById('lwe-lang-flag').textContent=lang?lang.flag:'🌐';
     resetPlayer();
     var servers=getActiveLangServers();
@@ -418,7 +441,7 @@
       document.getElementById('lwe-play-overlay').style.display='none';
       document.getElementById('lwe-player-poster').style.display='none';
     } else {
-      var langLabel=(LW_LANGS.find(function(l){ return l.key===activeLangKey; })||{}).label||activeLangKey;
+      var langLabel=((readConfig().langs||[]).find(function(l){ return l.key===activeLangKey; })||{}).label||activeLangKey;
       div.style.cssText+='display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#0d0d0d;';
       div.innerHTML='<svg style="width:42px;height:42px;color:#00b4ff;" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><p style="color:#555;font-size:.82rem;font-family:Outfit,sans-serif;text-align:center;padding:0 24px;">Servidor: <strong style="color:#e0e0e0;">'+esc(server.name)+'</strong> — Idioma: <strong style="color:#00b4ff;">'+esc(langLabel)+'</strong><br><span style="color:#333;font-size:.72rem;margin-top:4px;display:block;">Agrega la URL del embed en LW_LANGS</span></p>';
       pw.appendChild(div);
@@ -450,13 +473,13 @@
     setProp('og:title',seoTitle); setProp('og:description',seoDesc); setProp('og:image',seoImg); setProp('og:url',seoUrl); setProp('og:type','video.episode'); setProp('og:locale','es_MX');
     setName('twitter:card','summary_large_image'); setName('twitter:title',seoTitle); setName('twitter:description',seoDesc); setName('twitter:image',seoImg);
     var canon=document.querySelector('link[rel="canonical"]'); if(!canon){canon=document.createElement('link');canon.setAttribute('rel','canonical');document.head.appendChild(canon);} canon.setAttribute('href',seoUrl);
-    var jsonLd={'@context':'https://schema.org','@type':'TVEpisode','name':d.epTitle,'episodeNumber':d.epNum,'partOfSeason':{'@type':'TVSeason','seasonNumber':d.season},'partOfSeries':{'@type':'TVSeries','name':d.serieTitle,'url':LW_SERIE_URL||''},'description':d.epOverview,'image':seoImg,'datePublished':d.epDate,'url':seoUrl,'inLanguage':'es'};
+    var jsonLd={'@context':'https://schema.org','@type':'TVEpisode','name':d.epTitle,'episodeNumber':d.epNum,'partOfSeason':{'@type':'TVSeason','seasonNumber':d.season},'partOfSeries':{'@type':'TVSeries','name':d.serieTitle,'url':readConfig().serieUrl||''},'description':d.epOverview,'image':seoImg,'datePublished':d.epDate,'url':seoUrl,'inLanguage':'es'};
     var ld=document.getElementById('lwe-jsonld')||(function(){ var s=document.createElement('script');s.type='application/ld+json';s.id='lwe-jsonld';document.head.appendChild(s);return s; })();
     ld.textContent=JSON.stringify(jsonLd,null,2);
   }
 
   /* Solo corre si la página tiene config de episodio */
-  function shouldRun() { try { return typeof LW_EPISODE !== 'undefined'; } catch(e) { return false; } }
+  function shouldRun() { var el=document.getElementById('lwe-config'); return !!el && !!el.getAttribute('data-episode'); }
   if (shouldRun()) {
     if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',init); } else { init(); }
   }
