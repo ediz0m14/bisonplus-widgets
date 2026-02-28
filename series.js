@@ -116,7 +116,7 @@
     var scripts = document.getElementsByTagName('script');
     var configScript = null;
     for (var i = 0; i < scripts.length; i++) {
-      if (scripts[i].textContent.indexOf('LW_SLUG') !== -1) { configScript = scripts[i]; break; }
+      /* no se usa - config viene de data-attributes */
     }
     function doInsert() {
       var container = document.createElement('div');
@@ -177,18 +177,33 @@
   function lwsToast(icon, msg) { clearTimeout(toastTimer); document.getElementById('lws-toast-icon').textContent=icon; document.getElementById('lws-toast-msg').textContent=msg; document.getElementById('lws-toast').classList.add('lws-show'); toastTimer=setTimeout(function(){ document.getElementById('lws-toast').classList.remove('lws-show'); },2800); }
 
   function buildEpUrl(season, epNum) {
-    var base=(LW_BLOG_URL||window.location.origin).replace(/\/+$/,'');
-    var date=(LW_DATE||'').replace(/\/+$/,'');
-    return date ? base+'/'+date+'/'+LW_SLUG+'-'+season+'x'+epNum+'.html' : base+'/'+LW_SLUG+'-'+season+'x'+epNum+'.html';
+    var cfg=readConfig();
+    var base=(cfg.blogUrl||window.location.origin).replace(/\/+$/,'');
+    var date=(cfg.date||'').replace(/\/+$/,'');
+    return date ? base+'/'+date+'/'+cfg.slug+'-'+season+'x'+epNum+'.html' : base+'/'+cfg.slug+'-'+season+'x'+epNum+'.html';
   }
 
   /* ─────────────────────────────────────────────────────────────
      INIT
   ───────────────────────────────────────────────────────────── */
+  function readConfig() {
+    var el=document.getElementById('lws-config');
+    if (!el) return {};
+    return {
+      mal:       el.getAttribute('data-mal')     || '0',
+      tmdb:      el.getAttribute('data-tmdb')    || '0',
+      slug:      el.getAttribute('data-slug')    || '',
+      date:      el.getAttribute('data-date')    || '',
+      blogUrl:   el.getAttribute('data-blog')    || '',
+      trailerYt: el.getAttribute('data-trailer') || ''
+    };
+  }
+
   function init() {
-    var malId  = extractMalId(LW_MAL_ID)   || 0;
-    var tmdbId = extractTmdbId(LW_TMDB_ID) || 0;
-    if (!malId && !tmdbId) { showError('Define LW_MAL_ID y/o LW_TMDB_ID en la Sección 1.'); hideLoading(); return; }
+    var cfg   = readConfig();
+    var malId  = extractMalId(cfg.mal)   || 0;
+    var tmdbId = extractTmdbId(cfg.tmdb) || 0;
+    if (!malId && !tmdbId) { showError('Define data-mal y/o data-tmdb en el div #lws-config.'); hideLoading(); return; }
     tmdbShowId = tmdbId;
 
     var jikanP = malId
@@ -262,7 +277,7 @@
     if (jikan&&jikan.score>0) ratings.push({source:'MyAnimeList',icon:'MAL',score:jikan.score.toFixed(2)+' / 10',votes:jikan.scored_by?fmtVotes(jikan.scored_by):'',pct:(jikan.score/10)*100,color:'#2e51a2'});
 
     var trailer=null;
-    if (LW_TRAILER_YT){ trailer={key:LW_TRAILER_YT,name:'Tráiler oficial'}; }
+    if (cfg.trailerYt){ trailer={key:cfg.trailerYt,name:'Tráiler oficial'}; }
     else {
       var vids=[].concat((videosEs&&videosEs.results)||[],(videosEn&&videosEn.results)||[]);
       if (jikanVids&&jikanVids.promo&&jikanVids.promo.length&&jikanVids.promo[0].trailer&&jikanVids.promo[0].trailer.youtube_id) vids.unshift({key:jikanVids.promo[0].trailer.youtube_id,type:'Trailer',site:'YouTube',name:jikanVids.promo[0].title||'Tráiler oficial'});
@@ -299,7 +314,7 @@
      RENDER WIDGET
   ───────────────────────────────────────────────────────────── */
   function renderWidget(d) {
-    var blogBase=(LW_BLOG_URL||window.location.origin).replace(/\/+$/,'');
+    var blogBase=(readConfig().blogUrl||window.location.origin).replace(/\/+$/,'');
     if (d.backdrop||d.poster) document.getElementById('lws-hero-bg').style.backgroundImage="url('"+(d.backdrop||d.poster)+"')";
     var heroMain=d.romanizedTitle||d.title;
     document.getElementById('lws-title').innerHTML=esc(heroMain)+(d.year?' <span style="color:#666;font-weight:300;font-size:.55em;">('+d.year+')</span>':'');
@@ -447,7 +462,7 @@
   }
 
   /* Solo corre si la página tiene config de serie */
-  function shouldRun() { try { return typeof LW_SLUG !== 'undefined' && typeof LW_EPISODE === 'undefined' && typeof LW_MOVIE === 'undefined'; } catch(e) { return false; } }
+  function shouldRun() { var el=document.getElementById('lws-config'); return !!el && !!el.getAttribute('data-tmdb') && !el.getAttribute('data-episode'); }
   if (shouldRun()) {
     if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',init); } else { init(); }
   }
